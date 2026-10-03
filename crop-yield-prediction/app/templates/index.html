@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Crop Yield Predictor</title>
+  <meta name="description" content="ML Fundamentals Semester Project — Predict crop yield per hectare using agricultural and climatic inputs." />
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+
+  <header class="site-header">
+    <div class="header-inner">
+      <span class="header-icon">🌾</span>
+      <div>
+        <h1>Crop Yield Predictor</h1>
+        <p class="header-sub">ML Fundamentals — Case Study 29 &mdash; {{ model_name }}</p>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <!-- ── Left: Input Form ──────────────────────────────────────────── -->
+    <section class="card form-card">
+      <h2 class="card-title">Enter Field & Climate Details</h2>
+
+      <form id="predict-form" novalidate>
+
+        <!-- ── Numerical Inputs ── -->
+        <div class="section-label">Climatic &amp; Environmental Inputs</div>
+
+        <div class="field-group">
+          <label for="avg_temperature_c">Average Temperature <span class="unit">(°C)</span></label>
+          <input type="number" id="avg_temperature_c" name="avg_temperature_c"
+                 min="5" max="50" step="0.1" value="27" required />
+          <span class="hint">Seasonal average — typical range 8–47 °C</span>
+        </div>
+
+        <div class="field-group">
+          <label for="annual_rainfall_mm">Annual Rainfall <span class="unit">(mm)</span></label>
+          <input type="number" id="annual_rainfall_mm" name="annual_rainfall_mm"
+                 min="50" max="2000" step="1" value="650" required />
+          <span class="hint">Total annual precipitation — range 50–1907 mm</span>
+        </div>
+
+        <div class="field-group">
+          <label for="soil_moisture_percent">Soil Moisture <span class="unit">(%)</span></label>
+          <input type="number" id="soil_moisture_percent" name="soil_moisture_percent"
+                 min="5" max="90" step="0.1" value="37" required />
+          <span class="hint">Volumetric soil moisture at sensor depth</span>
+        </div>
+
+        <div class="field-group">
+          <label for="climate_stress_index">Climate Stress Index <span class="unit">(0–100)</span></label>
+          <input type="number" id="climate_stress_index" name="climate_stress_index"
+                 min="0" max="100" step="0.1" value="47" required />
+          <span class="hint">Composite drought / heat stress score — higher = more stress</span>
+        </div>
+
+        <div class="section-label">Farm Management Inputs</div>
+
+        <div class="field-group">
+          <label for="fertilizer_kg_per_ha">Fertilizer Applied <span class="unit">(kg/ha)</span></label>
+          <input type="number" id="fertilizer_kg_per_ha" name="fertilizer_kg_per_ha"
+                 min="0" max="400" step="1" value="135" required />
+          <span class="hint">Total NPK fertilizer — typical range 15–360 kg/ha</span>
+        </div>
+
+        <div class="field-group">
+          <label for="pesticide_litre_per_ha">Pesticide Applied <span class="unit">(litres/ha)</span></label>
+          <input type="number" id="pesticide_litre_per_ha" name="pesticide_litre_per_ha"
+                 min="0" max="10" step="0.1" value="2.4" required />
+          <span class="hint">Pesticide volume — range 0.1–6.85 litres/ha</span>
+        </div>
+
+        <div class="section-label">Categorical Inputs</div>
+
+        <div class="field-group">
+          <label for="crop">Crop Variety</label>
+          <select id="crop" name="crop" required>
+            {% for c in crops %}
+            <option value="{{ c }}">{{ c }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="field-group">
+          <label for="soil_type">Soil Type</label>
+          <select id="soil_type" name="soil_type" required>
+            {% for s in soils %}
+            <option value="{{ s }}">{{ s }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="field-group">
+          <label for="irrigation_type">Irrigation Type</label>
+          <select id="irrigation_type" name="irrigation_type" required>
+            {% for i in irrigations %}
+            <option value="{{ i }}">{{ i }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="field-group">
+          <label for="region">Region</label>
+          <select id="region" name="region" required>
+            {% for r in regions %}
+            <option value="{{ r }}">{{ r }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="field-group">
+          <label for="farm_type">Farm Type</label>
+          <select id="farm_type" name="farm_type" required>
+            {% for f in farm_types %}
+            <option value="{{ f }}">{{ f }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <button type="submit" id="predict-btn" class="btn-predict">
+          🌱 Predict Yield
+        </button>
+
+      </form>
+    </section>
+
+    <!-- ── Right: Result ─────────────────────────────────────────────── -->
+    <section class="card result-card" id="result-section" aria-live="polite">
+
+      <!-- idle state -->
+      <div id="result-idle" class="result-idle">
+        <div class="idle-icon">🌾</div>
+        <p>Fill in the field details and click <strong>Predict Yield</strong> to see the result.</p>
+      </div>
+
+      <!-- loading state -->
+      <div id="result-loading" class="result-loading hidden">
+        <div class="spinner"></div>
+        <p>Running model&hellip;</p>
+      </div>
+
+      <!-- success state -->
+      <div id="result-success" class="hidden">
+        <p class="result-label">Predicted Crop Yield</p>
+        <p class="result-value" id="result-yield">&mdash;</p>
+        <p class="result-unit">tons per hectare</p>
+
+        <div class="result-range" id="result-range">
+          <span class="range-label">Expected Prediction Error (±RMSE):</span>
+          <span id="range-text">&mdash;</span>
+        </div>
+
+        <div class="result-meta">
+          <div class="meta-row">
+            <span class="meta-key">Model</span>
+            <span class="meta-val" id="meta-model">&mdash;</span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-key">Test R²</span>
+            <span class="meta-val" id="meta-r2">&mdash;</span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-key">Test RMSE</span>
+            <span class="meta-val" id="meta-rmse">&mdash;</span>
+          </div>
+        </div>
+
+        <p class="result-note">
+          <strong>Note:</strong> The range shown is ±RMSE (Root Mean Squared Error from the test set).
+          RMSE is a measure of typical prediction error — it is <em>not</em> a formal statistical
+          confidence interval. It indicates the approximate magnitude of prediction uncertainty
+          based on the model's performance on held-out data.
+        </p>
+      </div>
+
+      <!-- error state -->
+      <div id="result-error" class="result-error hidden">
+        <p class="error-title">⚠️ Prediction failed</p>
+        <p id="error-message"></p>
+      </div>
+
+    </section>
+
+  </main>
+
+  <footer class="site-footer">
+    <p>ML Fundamentals Semester Project — Crop Yield Prediction (Case Study 29) &mdash; Dataset: Agriculture Precision Study Cases (Kaggle)</p>
+  </footer>
+
+  <script src="/static/js/main.js"></script>
+</body>
+</html>
